@@ -1,42 +1,28 @@
 import express from "express";
-import cors from "cors";
+import mongoose from "mongoose";
 import dotenv from "dotenv";
-import { Together } from "together-ai";
+import productRoutes from "./routes/products.js";
+import cores from "cors";
 
 dotenv.config();
 
 const app = express();
-const port = 3001;
 
-app.use(cors());
+
+// Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cores());
 
-const together = new Together({
-  apiKey: process.env.TOGETHER_API_KEY, // ต้องตั้งค่า API Key ในไฟล์ .env
-});
+// เชื่อม MongoDB
+mongoose
+  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-app.post("/api/chat", async (req, res) => {
-  try {
-    const { message } = req.body;
+// ใช้ Routes
+app.use("/api/products", productRoutes);
+app.use("/api", productRoutes);
 
-    const response = await together.chat.completions.create({
-      model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo-128K",
-      messages: [{ role: "user", content: message }],
-      max_tokens: 200, // ค่าจำกัดคำตอบ
-      temperature: 0.7, // ค่าความ random ของ output
-      top_p: 0.7,
-      top_k: 50,
-      repetition_penalty: 1,
-      stream: false, // ถ้าต้องการ Stream output เปลี่ยนเป็น true
-    });
-
-    res.json(response.choices[0].message); // ส่งผลลัพธ์กลับไปยัง frontend
-  } catch (error) {
-    console.error("API Error:", error);
-    res.status(500).json({ error: "API Error", details: error.message });
-  }
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
