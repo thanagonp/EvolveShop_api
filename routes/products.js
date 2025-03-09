@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import Product from "../models/Product.js";
 import cloudinary from "../config/cloudinary.js"; // ✅ นำเข้า Cloudinary
+import mongoose from "mongoose";
 
 const router = express.Router();
 
@@ -61,6 +62,29 @@ router.post("/delete-image", async (req, res) => {
   } catch (error) {
       console.error("❌ ลบภาพล้มเหลว:", error);
       res.status(500).json({ message: "❌ เกิดข้อผิดพลาดในการลบรูป" });
+  }
+});
+
+// 📌 API: ดึงสินค้าตาม ID
+router.get("/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // ✅ ตรวจสอบว่า ID ถูกต้องหรือไม่
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "❌ รหัสสินค้าไม่ถูกต้อง" });
+    }
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({ message: "❌ ไม่พบสินค้าในระบบ" });
+    }
+
+    res.status(200).json(product);
+  } catch (error) {
+    console.error("❌ ดึงสินค้าล้มเหลว:", error);
+    res.status(500).json({ message: "❌ เกิดข้อผิดพลาดในการดึงสินค้า" });
   }
 });
 
@@ -141,6 +165,36 @@ router.put("/update/:id", async (req, res) => {
       res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดตสินค้า" });
     }
   });
-  
+
+  // 📌 API: ลบสินค้าและรูปภาพทั้งหมดที่เกี่ยวข้อง
+router.delete("/delete/:id", async (req, res) => {
+  try {
+      const { id } = req.params;
+
+      // ✅ ค้นหาสินค้าใน MongoDB
+      const product = await Product.findById(id);
+      if (!product) {
+          return res.status(404).json({ message: "❌ ไม่พบสินค้า" });
+      }
+
+      // ✅ ลบรูปภาพทั้งหมดใน Cloudinary
+      const deletePromises = product.images.map(async (imageUrl) => {
+          const publicId = imageUrl.split("/").pop().split(".")[0]; // ดึง Public ID
+          return cloudinary.uploader.destroy(`ecommerce/products/${publicId}`);
+      });
+
+      // 🔹 รอลบรูปทั้งหมดให้เสร็จ
+      await Promise.all(deletePromises);
+
+      // ✅ ลบสินค้าจาก MongoDB
+      await Product.findByIdAndDelete(id);
+
+      res.status(200).json({ message: "✅ ลบสินค้าสำเร็จ พร้อมลบรูปทั้งหมด!" });
+  } catch (error) {
+      console.error("❌ ลบสินค้าล้มเหลว:", error);
+      res.status(500).json({ message: "❌ เกิดข้อผิดพลาดในการลบสินค้า" });
+  }
+});
+
 
 export default router;
