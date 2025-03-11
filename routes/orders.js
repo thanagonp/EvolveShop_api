@@ -3,6 +3,7 @@ import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
+import mongoose from "mongoose";
 
 const router = express.Router();
 
@@ -10,79 +11,96 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// 📌 API: สร้างออเดอร์ใหม่ (อัปโหลดสลิปไปยัง Cloudinary)
+// 📌 API: สร้างออเดอร์ใหม่ (รองรับ Transaction)
 router.post("/addOrder", upload.single("paymentSlip"), async (req, res) => {
+  const session = await mongoose.startSession(); // 🔹 เริ่ม Transaction
+  session.startTransaction();
+
   try {
     console.log("📌 รับข้อมูลจาก Client:", req.body);
 
-    // ✅ ตรวจสอบว่ามีไฟล์ถูกส่งมาหรือไม่
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "❌ กรุณาแนบสลิปการชำระเงิน" });
+      throw new Error("❌ กรุณาแนบสลิปการชำระเงิน");
     }
 
-    // ✅ ดึงข้อมูลจาก req.body
     const { customer, items, totalAmount } = req.body;
 
-    // ✅ ตรวจสอบและแปลง JSON (ป้องกัน JSON Format ผิดพลาด)
+    // ✅ ตรวจสอบและแปลง JSON
     let parsedCustomer, parsedItems;
-        try {
-        parsedCustomer = JSON.parse(customer);
-        parsedItems = JSON.parse(items).map(item => ({
-            product: item.id,  // ✅ เปลี่ยนจาก `id` เป็น `product`
-            name: item.name,
-            image: item.image,
-            quantity: item.quantity,
-            price: item.price
-        }));
-        } catch (error) {
-        return res.status(400).json({ success: false, message: "❌ ข้อมูล JSON ไม่ถูกต้อง" });
-        }
+    try {
+      parsedCustomer = JSON.parse(customer);
+      parsedItems = JSON.parse(items).map(item => ({
+        product: item.id,
+        name: item.name,
+        image: item.image,
+        quantity: item.quantity,
+        price: item.price
+      }));
+    } catch (error) {
+      throw new Error("❌ ข้อมูล JSON ไม่ถูกต้อง");
+    }
 
-        console.log("📌 ข้อมูลลูกค้า:", parsedCustomer);
-        console.log("📌 รายการสินค้า:", parsedItems); // ✅ ไม่มีปัญหา ReferenceError อีกต่อไป
-
-
-    // ✅ อัปโหลดสลิปไปยัง Cloudinary (ใช้ buffer)
-    const uploadPromise = new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: "payment_slips" },
-        (error, result) => {
-          if (error) {
-            console.error("❌ อัปโหลด Cloudinary ล้มเหลว:", error);
-            return reject(error);
+    // ✅ อัปโหลดสลิปไปยัง Cloudinary
+    let uploadResult;
+    try {
+      uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "payment_slips" },
+          (error, result) => {
+            if (error) {
+              console.error("❌ อัปโหลด Cloudinary ล้มเหลว:", error);
+              return reject(new Error("❌ อัปโหลดสลิปการชำระเงินล้มเหลว"));
+            }
+            resolve(result);
           }
-          resolve(result);
-        }
-      );
-      stream.end(req.file.buffer);
-    });
+        );
+        stream.end(req.file.buffer);
+      });
+    } catch (error) {
+      throw error;
+    }
 
-    const uploadResult = await uploadPromise;
-    console.log("✅ Cloudinary URL:", uploadResult.secure_url);
+    // ✅ ตรวจสอบว่าสินค้ามีเพียงพอหรือไม่
+    for (const item of parsedItems) {
+      const product = await Product.findById(item.product).session(session);
+      if (!product || product.stock < item.quantity) {
+        throw new Error(`❌ สินค้า ${item.name} คงเหลือไม่เพียงพอ`);
+      }
+    }
+
+    // ✅ หักสต็อกสินค้า
+    for (const item of parsedItems) {
+      await Product.findByIdAndUpdate(
+        item.product,
+        { $inc: { stock: -item.quantity } },
+        { session }
+      );
+    }
 
     // ✅ สร้างออเดอร์ใหม่
     const newOrder = new Order({
       customer: parsedCustomer,
       items: parsedItems,
       totalAmount,
-      paymentSlip: uploadResult.secure_url, // ✅ เก็บลิงก์ของภาพ
+      paymentSlip: uploadResult.secure_url,
+      status: "pending",
     });
 
-    await newOrder.save();
+    await newOrder.save({ session });
+
+    // ✅ Commit Transaction (บันทึกข้อมูลทั้งหมด)
+    await session.commitTransaction();
     console.log("✅ บันทึกออเดอร์สำเร็จ:", newOrder);
-
-    // ✅ อัปเดตจำนวนสินค้าในสต็อก
-    for (const item of parsedItems) {
-      console.log(`📌 อัปเดตสต็อกสินค้า ID: ${item.product}, จำนวน: ${item.quantity}`);
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: -item.quantity },
-      });
-    }
-
     res.status(201).json({ success: true, order: newOrder });
+
   } catch (error) {
-    console.error("❌ เกิดข้อผิดพลาด:", error);
-    res.status(500).json({ success: false, message: "❌ เกิดข้อผิดพลาดในการสร้างออเดอร์" });
+    // ❌ Rollback Transaction ถ้ามีปัญหา
+    console.error("❌ เกิดข้อผิดพลาด:", error.message);
+    await session.abortTransaction();
+    res.status(400).json({ success: false, message: error.message });
+
+  } finally {
+    session.endSession(); // ✅ ปิด Session เสมอ ไม่ให้ค้าง
   }
 });
 

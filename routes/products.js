@@ -196,5 +196,19 @@ router.delete("/delete/:id", async (req, res) => {
   }
 });
 
+// 📌 API: ดึงข้อมูล stock ของสินค้า
+router.get("/:id/stock", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).select("stock");
+    if (!product) {
+      return res.status(404).json({ success: false, message: "❌ ไม่พบสินค้า" });
+    }
+    res.status(200).json({ success: true, stock: product.stock });
+  } catch (error) {
+    console.error("❌ ดึงข้อมูล stock ล้มเหลว:", error);
+    res.status(500).json({ success: false, message: "❌ ไม่สามารถดึงข้อมูล stock ได้" });
+  }
+});
+
 
 export default router;
