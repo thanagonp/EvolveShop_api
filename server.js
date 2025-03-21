@@ -15,8 +15,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ระบุโดเมนของ Frontend ที่ต้องการอนุญาต
 const allowedOrigins = [
-  process.env.FRONTEND_BASE_URL 
+  "https://evolve-shop.vercel.app",  // Primary Domain
+  "https://evolve-shop-c4ajmb9bv-thanagons-projects-d215f576.vercel.app"  // Custom Deployment
 ];
 
 app.use(cors({
@@ -27,10 +29,8 @@ app.use(cors({
       callback(new Error("Not allowed by CORS"));
     }
   },
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-  credentials: true,
+  credentials: true  // อนุญาตให้ส่ง Cookie และ Header ที่เกี่ยวข้อง
 }));
-
 
 app.use(passport.initialize());
 
