@@ -16,8 +16,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const allowedOrigins = [
-  process.env.FRONTEND_URL || "evolve-shop-21b4y7r1t-thanagons-projects-d215f576.vercel.app",
-  process.env.NGROK_URL || "https://a5e4-171-6-104-94.ngrok-free.app"
+  process.env.FRONTEND_BASE_URL 
 ];
 
 app.use(cors({
