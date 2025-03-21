@@ -20,17 +20,8 @@ const allowedOrigins = [
   "https://evolve-shop-c4ajmb9bv-thanagons-projects-d215f576.vercel.app"
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",  // ✅ อนุญาตทุก Method
-  credentials: true  // ✅ อนุญาต Cookie และ Authentication
-}));
+app.use(cors({ origin: "*", credentials: true }));
+
 
 app.use(passport.initialize());
 
