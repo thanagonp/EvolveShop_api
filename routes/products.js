@@ -65,8 +65,19 @@ router.post("/delete-image", async (req, res) => {
   }
 });
 
+// 📌 API: ดึงรายการสินค้า
+router.get("/list", async (req, res) => {
+  try {
+      const products = await Product.find();
+      res.json(products);
+  } catch (error) {
+      console.error("❌ เกิดข้อผิดพลาด:", error);
+      res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงสินค้า" });
+  }
+});
+
 // 📌 API: ดึงสินค้าตาม ID
-router.get("/products/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -129,17 +140,6 @@ router.post("/add", upload.array("images", 5), async (req, res) => {
   } catch (error) {
       console.error("❌ เกิดข้อผิดพลาด:", error);
       res.status(500).json({ message: "เกิดข้อผิดพลาดในการเพิ่มสินค้า" });
-  }
-});
-
-// 📌 API: ดึงรายการสินค้า
-router.get("/list", async (req, res) => {
-  try {
-      const products = await Product.find();
-      res.json(products);
-  } catch (error) {
-      console.error("❌ เกิดข้อผิดพลาด:", error);
-      res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงสินค้า" });
   }
 });
 
