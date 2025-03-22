@@ -24,7 +24,7 @@ router.post('/telegram', async (req, res) => {
   try {
     // ✅ 1. ส่งข้อความจาก Telegram ไปยัง Together AI
     const aiResponse = await axios.post(TOGETHER_API, {
-    model: "mistralai/Mistral-7B-Instruct-v0.1",
+    model: "meta-llama/Llama-Vision-Free",
     messages: [
         {
           role: "system",
