@@ -7,6 +7,7 @@ import passport from "passport";
 import authRoutes from "./routes/auth.js";
 import productRoutes from "./routes/products.js";
 import orderRoutes from "./routes/orders.js";
+import telegramRoutes from "./routes/telegram.js";
 
 dotenv.config();  // ✅ โหลด env ก่อนใช้ค่า
 const app = express();
@@ -34,6 +35,7 @@ mongoose
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/webhook", telegramRoutes);
 app.get("/", (req, res) => {
   res.send("Welcome to My Telegram Auth API");
 });
