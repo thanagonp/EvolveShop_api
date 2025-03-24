@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-import fuzz from 'fuzzball';
+import * as fuzz from 'fuzzball';
 import Product from '../models/Product.js';
 
 const router = express.Router();
