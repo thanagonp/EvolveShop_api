@@ -36,7 +36,9 @@ router.post('/telegram', async (req, res) => {
 📦 รายละเอียดสินค้าทั้งหมดในระบบ:
 ${productDetailsList}
 
-คุณสามารถเรียกฟังก์ชันชื่อ \"sendProductImages\" เมื่อคุณต้องการให้ระบบส่งภาพสินค้าให้ลูกค้า
+ลูกค้าสามารถดูภาพสินค้าและข้อมูลเพิ่มเติมได้ที่เว็บไซต์ของร้าน: https://evolve-shop.com
+
+โปรดอย่าตอบสิ่งที่ไม่มีอยู่จริง และหากลูกค้าต้องการดูรูปภาพสินค้า ให้แนะนำให้เข้าเว็บไซต์ร้านค้า
 `;
 
     const messages = [
@@ -46,24 +48,7 @@ ${productDetailsList}
 
     const aiResponse = await axios.post(TOGETHER_API, {
       model: "meta-llama/Llama-Vision-Free",
-      messages,
-      functions: [
-        {
-          name: "sendProductImages",
-          description: "ส่งภาพสินค้าให้ลูกค้า",
-          parameters: {
-            type: "object",
-            properties: {
-              productNames: {
-                type: "array",
-                items: { type: "string" },
-                description: "ชื่อสินค้าที่ต้องการส่งภาพให้ลูกค้า"
-              }
-            },
-            required: ["productNames"]
-          }
-        }
-      ]
+      messages
     }, {
       headers: {
         Authorization: `Bearer ${TOGETHER_API_KEY}`,
@@ -71,26 +56,7 @@ ${productDetailsList}
       }
     });
 
-    const choice = aiResponse.data.choices[0];
-    const functionCall = choice.message?.function_call;
-
-    if (functionCall?.name === "sendProductImages") {
-      const args = JSON.parse(functionCall.arguments);
-      const selectedNames = args.productNames || [];
-      const selectedProducts = products.filter(p => selectedNames.includes(p.name));
-
-      for (const p of selectedProducts) {
-        if (p.images?.length > 0) {
-          await axios.post(`${TELEGRAM_API}/sendPhoto`, {
-            chat_id: chatId,
-            photo: p.images[0],
-            caption: `${p.name} - ${p.price} บาท\nคงเหลือ: ${p.stock} ชิ้น`
-          });
-        }
-      }
-    }
-
-    let aiReply = choice.message?.content?.trim();
+    let aiReply = aiResponse.data.choices[0].message.content.trim();
     if (!aiReply) {
       aiReply = 'ขออภัยค่ะ ตอนนี้ระบบมีปัญหาในการตอบกลับ โปรดติดต่อแอดมินโดยตรง';
     }
