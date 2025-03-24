@@ -47,23 +47,39 @@ ${productDetailsList}
 - ตอบคำถามสั้น กระชับ ชัดเจน เข้าใจง่าย
 หากลูกค้าถามข้อมูลที่ไม่มีในระบบ ให้ตอบสุภาพว่าไม่มีข้อมูลดังกล่าว`;
 
-    const shouldSendImages = TRIGGER_KEYWORDS.some(keyword =>
-      userText.toLowerCase().includes(keyword)
-    );
+    // ฟังก์ชันช่วยหาจำนวนที่ลูกค้าต้องการดู
+function extractRequestedAmount(text) {
+  const match = text.match(/(\\d+)[\\s]*ชิ้น|แนะนำ[\\s]*สินค้า[\\s]*(\\d+)/i);
+  return match ? parseInt(match[1] || match[2]) : null;
+}
 
-    if (shouldSendImages) {
-      const imagesToSend = products.slice(0, 3);
+const shouldSendImages = TRIGGER_KEYWORDS.some(keyword =>
+  userText.toLowerCase().includes(keyword)
+);
 
-      for (const p of imagesToSend) {
-        if (p.images?.length > 0) {
-          await axios.post(`${TELEGRAM_API}/sendPhoto`, {
-            chat_id: chatId,
-            photo: p.images[0],
-            caption: `${p.name} - ${p.price} บาท\nคงเหลือ: ${p.stock} ชิ้น`
-          });
-        }
-      }
+const requestedAmount = extractRequestedAmount(userText);
+
+if (shouldSendImages) {
+  let imagesToSend = [...products];
+
+  // ถ้ามีการระบุจำนวน ให้จำกัดตามนั้น
+  if (requestedAmount && requestedAmount > 0) {
+    imagesToSend = imagesToSend.slice(0, requestedAmount);
+  } else {
+    imagesToSend = imagesToSend.slice(0, 3); // default
+  }
+
+  for (const p of imagesToSend) {
+    if (p.images?.length > 0) {
+      await axios.post(`${TELEGRAM_API}/sendPhoto`, {
+        chat_id: chatId,
+        photo: p.images[0],
+        caption: `${p.name} - ${p.price} บาท\\nคงเหลือ: ${p.stock} ชิ้น`
+      });
     }
+  }
+}
+
 
     const aiResponse = await axios.post(TOGETHER_API, {
       model: "meta-llama/Llama-Vision-Free",
