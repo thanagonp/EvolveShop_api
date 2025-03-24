@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-import stringSimilarity from 'string-similarity';
+import fuzz from 'fuzzball';
 import Product from '../models/Product.js';
 
 const router = express.Router();
@@ -15,12 +15,20 @@ const TRIGGER_KEYWORDS = [
   'แนะนำ', 'ดูสินค้า', 'ภาพ', 'ตัวอย่าง', 'เหมาะ', 'แบบไหนดี', 'งบ', 'ไม่เกิน', 'ถูกสุด', 'เลือกให้หน่อย'
 ];
 
-// 🔍 ฟังก์ชันจับสินค้าที่ user อาจหมายถึง
+// 🔍 ฟังก์ชันจับสินค้าที่ user อาจหมายถึง ด้วย fuzzball
 function findBestMatchingProduct(products, userText) {
-  const names = products.map(p => p.name);
-  const { bestMatch } = stringSimilarity.findBestMatch(userText, names);
-  const matched = products.find(p => p.name === bestMatch.target);
-  return bestMatch.rating > 0.5 ? matched : null;
+  const productNames = products.map(p => p.name);
+  const result = fuzz.extract(userText, productNames, {
+    scorer: fuzz.token_set_ratio,
+    returnObjects: true
+  });
+
+  const bestMatch = result[0];
+  if (bestMatch && bestMatch.score >= 70) {
+    return products.find(p => p.name === bestMatch.string);
+  }
+
+  return null;
 }
 
 router.post('/telegram', async (req, res) => {
@@ -83,7 +91,7 @@ ${productDetails}
       for (const p of top3) {
         await axios.post(`${TELEGRAM_API}/sendPhoto`, {
           chat_id: chatId,
-          photo: p.images?.[0], // ป้องกัน error หากไม่มีภาพ
+          photo: p.images?.[0],
           caption: `${p.name} - ${p.price} บาท\nคงเหลือ: ${p.stock} ชิ้น`
         });
       }
